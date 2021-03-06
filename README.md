@@ -2,9 +2,20 @@
 
 ## Setup: 
 
-### 1: install from requirements.txt (using conda or pip install) 
+### 1: Install from requirements.txt (using conda or pip install) 
 
-### 2: Install pytorch  
+### 2: Install [pytorch](https://developer.nvidia.com/cuda-zone)  
+
+```
+pip install torch==1.6.0 
+```
+
+No CUDA
+To install PyTorch via pip, and do not have a CUDA-capable system or do not require CUDA, in the above selector, choose OS: Windows, Package: Pip and CUDA: None. Then, run the command that is presented to you.
+
+With CUDA
+To install PyTorch via pip, and do have a CUDA-capable system, in the above selector, choose OS: Windows, Package: Pip and the CUDA version suited to your machine. Often, the latest CUDA version is better. Then, run the command that is presented to you.
+
 
 ### 3: Install pytorch-geometric  
 
@@ -41,7 +52,7 @@ pip install torch-geometric
 [pytorch-geometric Reference](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 
 
-### 4: install odb 
+### 4: Install odb 
 ```
 pip install ogb
 python -c "import ogb; print(ogb.__version__)"
