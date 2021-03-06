@@ -1,6 +1,6 @@
 # cs224w
 
-## Installation: 
+## Setup: 
 
 ### 1: install from requirements.txt (using conda or pip install) 
 
