@@ -62,7 +62,7 @@ Note: This should print "1.2.6". Otherwise, please update the version by
 pip install -U ogb
 ```
 
-##Reference: 
+## Reference: 
 AGE: baseline implementation of AGE network 
 [AGE reference](https://github.com/thunlp/AGE)
 
