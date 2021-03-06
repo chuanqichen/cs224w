@@ -6,10 +6,12 @@
 
 ### 2: Install [pytorch](https://developer.nvidia.com/cuda-zone)  
 
+On MAC or Linux, it's very simple: 
 ```
 pip install torch==1.6.0 
 ```
 
+On Windows, please follow this link [pytorch](https://developer.nvidia.com/cuda-zone):   
 No CUDA
 To install PyTorch via pip, and do not have a CUDA-capable system or do not require CUDA, in the above selector, choose OS: Windows, Package: Pip and CUDA: None. Then, run the command that is presented to you.
 
