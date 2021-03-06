@@ -63,9 +63,7 @@ pip install -U ogb
 ```
 
 ## Reference: 
-1. AGE: baseline implementation of AGE network 
-[AGE reference](https://github.com/thunlp/AGE)
+1. AGE: [baseline implementation of AGE network](https://github.com/thunlp/AGE)
 
-2. ddi: how to load ddi dataset for link prediction tasks 
-[ddi reference](https://github.com/omri1348/LRGA/tree/master/ogb/examples/linkproppred)
+2. ddi: [how to load ddi dataset for link prediction tasks](https://github.com/omri1348/LRGA/tree/master/ogb/examples/linkproppred)
 
