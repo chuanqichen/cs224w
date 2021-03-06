@@ -4,6 +4,8 @@
 
 ### 1: install from requirements.txt (using conda or pip install) 
 
+### 2: Install pytorch  
+
 ### 2: Install pytorch-geometric  
 
 Ensure that at least PyTorch 1.4.0 is installed:
