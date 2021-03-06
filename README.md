@@ -9,7 +9,7 @@
 Ensure that at least PyTorch 1.4.0 is installed:
 ```
 $ python -c "import torch; print(torch.__version__)"
->>> 1.7.0
+>>> 1.6.0
 ```
 Find the CUDA version PyTorch was installed with:
 ```
