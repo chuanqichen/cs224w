@@ -54,7 +54,7 @@ pip install torch-geometric
 [pytorch-geometric Reference](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 
 
-### 4: Install odb 
+### 4: Install ogb 
 ```
 pip install ogb
 python -c "import ogb; print(ogb.__version__)"
@@ -62,7 +62,7 @@ Note: This should print "1.2.6". Otherwise, please update the version by
 pip install -U ogb
 ```
 
-Reference: 
+##Reference: 
 AGE: baseline implementation of AGE network 
 [AGE reference](https://github.com/thunlp/AGE)
 
