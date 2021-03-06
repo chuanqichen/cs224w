@@ -6,7 +6,7 @@
 
 ### 2: Install pytorch  
 
-### 2: Install pytorch-geometric  
+### 3: Install pytorch-geometric  
 
 Ensure that at least PyTorch 1.4.0 is installed:
 ```
@@ -41,7 +41,7 @@ pip install torch-geometric
 [pytorch-geometric Reference](https://pytorch-geometric.readthedocs.io/en/latest/notes/installation.html)
 
 
-### 3: install odb 
+### 4: install odb 
 ```
 pip install ogb
 python -c "import ogb; print(ogb.__version__)"
