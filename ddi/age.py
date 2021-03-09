@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch_geometric.utils import negative_sampling
+from torch_geometric.utils.sparse import dense_to_sparse
 
 from layers import *
 from utils import *
@@ -74,20 +75,11 @@ class LinkPredictor(torch.nn.Module):
         x = self.lins[-1](x)
         return torch.sigmoid(x)
 
-def coo(adj):
-    coo = [[], []]
-    for i in range(len(adj)):
-        for j in range(len(adj[i])):
-            if adj[i][j] > 0:
-                coo[0].append(i)
-                coo[1].append(j)
-    return coo
-
 def train(model, predictor, x, adj_t, split_edge, optimizer, batch_size):
 
     #row, col, _ = adj_t.coo()
-    row, col = coo(adj_t)
-    edge_index = torch.stack([col, row], dim=0)
+    _, coo = dense_to_sparse(adj_t)
+    edge_index = torch.stack([coo[0], coo[1]], dim=0)
 
     model.train()
     predictor.train()
@@ -307,6 +299,7 @@ def main():
         for epoch in range(1, 1 + args.epochs):
             loss = train(model, predictor, emb.weight, adj, split_edge,
                          optimizer, args.batch_size)
+            print("epoch: ", epoch, " loss: ", loss)
 
             if epoch % args.eval_steps == 0:
                 results = test(model, predictor, emb.weight, data.adj, split_edge,
