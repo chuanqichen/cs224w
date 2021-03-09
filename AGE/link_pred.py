@@ -160,6 +160,7 @@ def gae_for(args):
     print("pos inds shape", pos_inds_cuda.shape)
 
     best_lp = 0.
+    print("Batch Size", bs)
     print('Start Training...')
     for epoch in tqdm(range(args.epochs)):
         
@@ -184,6 +185,8 @@ def gae_for(args):
             print("yind shape", yind.shape)
             x = torch.index_select(inx, 0, xind)
             y = torch.index_select(inx, 0, yind)
+            print("some x", x[:5])
+            print("some y", y[:5])
             print("x shape", x.shape)
             print("y shape", y.shape)
             zx = model(x)

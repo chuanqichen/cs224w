@@ -78,8 +78,11 @@ class LinkPredictor(torch.nn.Module):
 def train(model, predictor, x, adj_t, split_edge, optimizer, batch_size):
 
     #row, col, _ = adj_t.coo()
-    _, coo = dense_to_sparse(adj_t)
-    edge_index = torch.stack([coo[0], coo[1]], dim=0)
+    #_, coo = dense_to_sparse(adj_t)
+    n_nodes = adj_t.shape[0]
+
+    coo = adj_t
+    edge_index = torch.stack([coo[0], coo[1]], dim=0).to_dense()
 
     model.train()
     predictor.train()
@@ -91,15 +94,20 @@ def train(model, predictor, x, adj_t, split_edge, optimizer, batch_size):
                            shuffle=True):
         optimizer.zero_grad()
 
-        h = model(x)
+        print("Perm size", perm.size(0))
 
-        edge = pos_train_edge[perm].t()
-
-        pos_out = predictor(h[edge[0]], h[edge[1]])
-        pos_loss = -torch.log(pos_out + 1e-15).mean()
-
-        edge = negative_sampling(edge_index, num_nodes=x.size(0),
+        pos_edges = pos_train_edge[perm].t()
+        print("Pos edges shape", pos_edges.shape)
+        neg_edges = negative_sampling(edge_index, num_nodes=x.size(0),
                                  num_neg_samples=perm.size(0), method='dense')
+
+        print("Pos edges shape", neg_edges.shape)
+
+        combined_edges = torch.cat((pos_edges, neg_edges), 0)
+        x_edges = combined_edges // n_nodes
+        y_edges = combined_edges % n_nodes
+
+        h = model(x)
 
         neg_out = predictor(h[edge[0]], h[edge[1]])
         neg_loss = -torch.log(1 - neg_out + 1e-15).mean()
@@ -214,6 +222,8 @@ def main():
     dataset = PygLinkPropPredDataset(name='ogbl-ddi',
                                      transform=T.ToDense())
     data = dataset[0]
+    print("[DDI INFO] DDI Graph is undirected")
+
     cpu = args.cpu
     if cpu:
         adj = data.adj
@@ -239,12 +249,19 @@ def main():
     else:
         adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0]).to(device)
 
-    # FIXME: reconstruct adj_train from split_edge['train']
-    adj_train = adj
+    # Reconstruct adj_train from split_edge['train']
+    train_edges = split_edge['train']['edge']
+    print("train edge shape", train_edges.shape)
+    print("[DDI INFO] only one set of edges in split_edge['train']['edge']")
+
+    n_train_edges = train_edges.shape[0]
+    adj_data = torch.ones(n_train_edges)
+    adj_train = torch.sparse_coo_tensor(train_edges.transpose(1, 0), adj_data, (adj.shape)) 
+    adj_train = adj_train + adj_train.transpose(1, 0)
     adj = adj_train
     n = adj.shape[0]
     
-    adj_numpy = adj.cpu().detach().numpy()
+    adj_numpy = adj.to_dense().cpu().detach().numpy()
 
     adj_norm_s = preprocess_graph(adj_numpy, args.num_gnn_layers, norm='sym', renorm=True)
 
@@ -262,7 +279,7 @@ def main():
     print("sm_fea_s shape", sm_fea_s.shape)
 
     if cpu:
-        adj_1st = (adj + torch.eye(n))
+        adj_1st = torch.eye(n) + adj
         adj_label = torch.FloatTensor(adj_1st)
     else:
         adj_1st = (adj.to(device) + torch.eye(n).to(device))
@@ -282,17 +299,19 @@ def main():
         emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels)
         predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                                   args.num_gnn_layers, args.dropout)
-        inx = sm_fea_s.cuda()
-        adj_label = adj_label.cuda()
+        inx = sm_fea_s
     else:
         model = LinTrans(layers, dims).to(device)
         emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels).to(device)
         predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                                   args.num_gnn_layers, args.dropout).to(device)
-        inx = sm_fea_s
+        inx = sm_fea_s.cuda()
+        adj_label = adj_label.cuda()
 
-    pos_num = len(adj.indices)
+    pos_num = n_train_edges 
     neg_num = n_nodes*n_nodes-pos_num
+    print("Number Pos Training Edges", pos_num)
+    print("Number Neg Training Edges", neg_num)
     
     #up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
     #low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
