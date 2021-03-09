@@ -101,7 +101,7 @@ def gae_for(args):
     
     layers = args.linlayers
     # Store original adjacency matrix (without diagonal entries) for later
-    
+    print('adjacency shape', adj.shape) 
     adj = adj - sp.dia_matrix((adj.diagonal()[np.newaxis, :], [0]), shape=adj.shape)
     adj.eliminate_zeros()
     adj_orig = adj
@@ -110,6 +110,7 @@ def gae_for(args):
     adj = adj_train
     n = adj.shape[0]
 
+    print('feature shape', features.shape)
     adj_norm_s = preprocess_graph(adj, args.gnnlayers, norm='sym', renorm=True)
     sm_fea_s = sp.csr_matrix(features).toarray()
     
