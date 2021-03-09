@@ -91,7 +91,7 @@ def train(model, predictor, x, adj_t, split_edge, optimizer, batch_size):
                            shuffle=True):
         optimizer.zero_grad()
 
-        h = model(x, adj_t)
+        h = model(x)
 
         edge = pos_train_edge[perm].t()
 
@@ -125,7 +125,7 @@ def test(model, predictor, x, adj_t, split_edge, evaluator, batch_size):
     model.eval()
     predictor.eval()
 
-    h = model(x, adj_t)
+    h = model(x)
 
     pos_train_edge = split_edge['eval_train']['edge'].to(x.device)
     pos_valid_edge = split_edge['valid']['edge'].to(x.device)
@@ -259,6 +259,8 @@ def main():
     for a in adj_norm_s:
         sm_fea_s = a.dot(sm_fea_s)
 
+    print("sm_fea_s shape", sm_fea_s.shape)
+
     if cpu:
         adj_1st = (adj + torch.eye(n))
         adj_label = torch.FloatTensor(adj_1st)
@@ -268,16 +270,32 @@ def main():
 
     layers = args.num_linear_layers
     dims = [feat_dim] + args.age_dims 
+    print("Model Dims", dims)
+
+    sm_fea_s = torch.FloatTensor(sm_fea_s)
+    adj_label = adj_label.reshape([-1,])
+    print("sm_fea_s shape", sm_fea_s.shape)
+    print("adj_label shape", adj_label.shape)
+
     if cpu:
         model = LinTrans(layers, dims)
         emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels)
         predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                                   args.num_gnn_layers, args.dropout)
+        inx = sm_fea_s.cuda()
+        adj_label = adj_label.cuda()
     else:
         model = LinTrans(layers, dims).to(device)
         emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels).to(device)
         predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
                                   args.num_gnn_layers, args.dropout).to(device)
+        inx = sm_fea_s
+
+    pos_num = len(adj.indices)
+    neg_num = n_nodes*n_nodes-pos_num
+    
+    #up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
+    #low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
 
     print("model parameters {}".format(sum(p.numel() for p in model.parameters())))
     print("predictor parameters {}".format(sum(p.numel() for p in predictor.parameters())))

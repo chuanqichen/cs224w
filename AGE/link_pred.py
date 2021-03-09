@@ -98,6 +98,7 @@ def gae_for(args):
     adj, features, true_labels, idx_train, idx_val, idx_test = load_data(args.dataset)
     n_nodes, feat_dim = features.shape
     dims = [feat_dim] + args.dims
+    print("Model dims", dims)
     
     layers = args.linlayers
     # Store original adjacency matrix (without diagonal entries) for later
@@ -127,25 +128,37 @@ def gae_for(args):
     
     sm_fea_s = torch.FloatTensor(sm_fea_s)
     adj_label = adj_label.reshape([-1,])
+    print("sm_fea_s shape", sm_fea_s.shape)
+    print("adj_label shape", adj_label.shape)
 
     if args.cuda:
         model.cuda()
         inx = sm_fea_s.cuda()
         adj_label = adj_label.cuda()
+    else:
+        inx = sm_fea_s
 
     pos_num = len(adj.indices)
     neg_num = n_nodes*n_nodes-pos_num
-
+    
     up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
     low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
 
     pos_inds, neg_inds = update_similarity(normalize(sm_fea_s.numpy()), args.upth_st, args.lowth_st, pos_num, neg_num)
+    print("pos_inds shape", pos_inds.shape)
+    print("neg_inds shape", neg_inds.shape)
+
     upth, lowth = update_threshold(args.upth_st, args.lowth_st, up_eta, low_eta)
 
     bs = min(args.bs, len(pos_inds))
     length = len(pos_inds)
     
-    pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
+    if args.cuda:
+        pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
+    else:
+        pos_inds_cuda = torch.LongTensor(pos_inds)
+    print("pos inds shape", pos_inds_cuda.shape)
+
     best_lp = 0.
     print('Start Training...')
     for epoch in tqdm(range(args.epochs)):
@@ -156,16 +169,27 @@ def gae_for(args):
         length = len(pos_inds)
         
         while ( ed <= length ):
-            sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=ed-st)).cuda()
+            if args.cuda:
+                sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=ed-st)).cuda()
+            else:
+                sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=ed-st))
+            print("sampled neg shape", sampled_neg.shape)
             sampled_inds = torch.cat((pos_inds_cuda[st:ed], sampled_neg), 0)
+            print("sampled inds shape", sampled_inds.shape)
             t = time.time()
             optimizer.zero_grad()
             xind = sampled_inds // n_nodes
             yind = sampled_inds % n_nodes
+            print("xind shape", xind.shape)
+            print("yind shape", yind.shape)
             x = torch.index_select(inx, 0, xind)
             y = torch.index_select(inx, 0, yind)
+            print("x shape", x.shape)
+            print("y shape", y.shape)
             zx = model(x)
             zy = model(y)
+            print("zx shape", zx.shape)
+            print("zy shape", zy.shape)
             batch_label = torch.cat((torch.ones(ed-st), torch.zeros(ed-st))).cuda()
             batch_pred = model.dcs(zx, zy)
             loss = loss_function(adj_preds=batch_pred, adj_labels=batch_label, n_nodes=ed-st)
