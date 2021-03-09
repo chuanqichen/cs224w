@@ -74,9 +74,19 @@ class LinkPredictor(torch.nn.Module):
         x = self.lins[-1](x)
         return torch.sigmoid(x)
 
+def coo(adj):
+    coo = [[], []]
+    for i in range(len(adj)):
+        for j in range(len(adj[i])):
+            if adj[i][j] > 0:
+                coo[0].append(i)
+                coo[1].append(j)
+    return coo
+
 def train(model, predictor, x, adj_t, split_edge, optimizer, batch_size):
 
-    row, col, _ = adj_t.coo()
+    #row, col, _ = adj_t.coo()
+    row, col = coo(adj_t)
     edge_index = torch.stack([col, row], dim=0)
 
     model.train()
@@ -232,8 +242,11 @@ def main():
     # [AGE] store original adj matrix (without diag entries) for later
     # TODO
     diag_ind = np.diag_indices(adj.shape[0])
-    adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0]) 
-    
+    if cpu:
+        adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0])
+    else:
+        adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0]).to(device)
+
     # FIXME: reconstruct adj_train from split_edge['train']
     adj_train = adj
     adj = adj_train
@@ -253,9 +266,13 @@ def main():
     print('Laplacian Smoothing...') 
     for a in adj_norm_s:
         sm_fea_s = a.dot(sm_fea_s)
-    adj_1st = (adj + torch.eye(n))
 
-    adj_label = torch.FloatTensor(adj_1st)
+    if cpu:
+        adj_1st = (adj + torch.eye(n))
+        adj_label = torch.FloatTensor(adj_1st)
+    else:
+        adj_1st = (adj.to(device) + torch.eye(n).to(device))
+        adj_label = adj_1st.reshape(-1)
 
     layers = args.num_linear_layers
     dims = [feat_dim] + args.age_dims 
