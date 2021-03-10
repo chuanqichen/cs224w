@@ -335,11 +335,10 @@ def main():
     if debug:
         print("sm_fea_s shape", sm_fea_s.shape)
 
+    adj_1st = torch.eye(n) + adj
     if cpu:
-        adj_1st = torch.eye(n) + adj
         adj_label = torch.FloatTensor(adj_1st)
     else:
-        adj_1st = (adj.to(device) + torch.eye(n).to(device))
         adj_label = adj_1st.reshape(-1)
 
     layers = args.num_linear_layers
