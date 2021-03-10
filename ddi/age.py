@@ -97,11 +97,12 @@ def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
         optimizer.zero_grad()
 
         print("Perm size", perm.shape)
+        n_samples = perm.shape[0]
 
         if cpu:
-            sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=batch_size))
+            sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=n_samples))
         else:
-            sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=batch_size)).cuda()
+            sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=n_samples)).cuda()
 
         sampled_inds = torch.cat((pos_inds_cuda[perm], sampled_neg), 0)
         
@@ -120,9 +121,9 @@ def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
         print("Zy shape", zy.shape)
         
         if cpu:
-            batch_label = torch.cat((torch.ones(batch_size), torch.zeros(batch_size)))
+            batch_label = torch.cat((torch.ones(n_samples), torch.zeros(n_samples)))
         else:
-            batch_label = torch.cat((torch.ones(batch_size), torch.zeros(batch_size))).cuda()
+            batch_label = torch.cat((torch.ones(n_samples), torch.zeros(n_samples))).cuda()
 
         batch_pred = model.dcs(zx, zy)
         loss = F.binary_cross_entropy_with_logits(batch_pred, batch_label)
@@ -134,7 +135,7 @@ def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
 
         optimizer.step()
 
-        num_examples = pos_out.size(0)
+        num_examples = perm.shape[0]
         total_loss += loss.item() * num_examples
         total_examples += num_examples
 
@@ -235,7 +236,7 @@ def main():
     parser.add_argument('--num_linear_layers', type=int, default=1)
     parser.add_argument('--hidden_channels', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0.5)
-    parser.add_argument('--batch_size', type=int, default=64 * 1024)
+    parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--lr', type=float, default=0.005)
     parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--eval_steps', type=int, default=1)
