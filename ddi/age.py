@@ -143,9 +143,8 @@ def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
 
 
 @torch.no_grad()
-def test(model, predictor, x, adj_t, split_edge, evaluator, batch_size):
+def test(model, predictor, x, adj_t, split_edge, evaluator, batch_size, upth, lowth, up_eta, low_eta, pos_num, neg_num):
     model.eval()
-
     h = model(x)
 
     pos_train_edge = split_edge['eval_train']['edge'].to(x.device)
@@ -153,6 +152,20 @@ def test(model, predictor, x, adj_t, split_edge, evaluator, batch_size):
     neg_valid_edge = split_edge['valid']['edge_neg'].to(x.device)
     pos_test_edge = split_edge['test']['edge'].to(x.device)
     neg_test_edge = split_edge['test']['edge_neg'].to(x.device)
+
+    hidden_emb = h.cpu().data.numpy()
+    upth, lowth = update_threshold(upth, lowth, up_eta, low_eta)
+    pos_inds, neg_inds = update_similarity(hidden_emb, upth, lowth, pos_num, neg_num)
+    bs = min(batch_size, len(pos_inds))
+    pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
+    val_auc, val_ap = get_roc_score(hidden_emb, adj_t, pos_valid_edge, neg_valid_edge)
+
+    # val_auc, val_ap = get_roc_score(hidden_emb, adj_orig, val_edges, val_edges_false)
+    # if val_auc + val_ap >= best_lp:
+    #     best_lp = val_auc + val_ap
+    #     best_emb = hidden_emb
+    # tqdm.write("Epoch: {}, train_loss_gae={:.5f}, time={:.5f}".format(
+    #     epoch + 1, cur_loss, time.time() - t))
 
     pos_train_preds = []
     for perm in DataLoader(range(pos_train_edge.size(0)), batch_size):
@@ -385,7 +398,8 @@ def main():
 
             if epoch % args.eval_steps == 0:
                 results = test(model, predictor, emb.weight, data.adj, split_edge,
-                               evaluator, args.batch_size)
+                               evaluator, args.batch_size,
+                               upth, lowth, up_eta, low_eta, pos_num, neg_num)
                 for key, result in results.items():
                     loggers[key].add_result(run, result)
 
