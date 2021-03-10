@@ -140,7 +140,9 @@ def gae_for(args):
 
     pos_num = len(adj.indices)
     neg_num = n_nodes*n_nodes-pos_num
-    
+    print("Num Pos Samples", pos_num)
+    print("Num Neg Samples", neg_num)    
+
     up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
     low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
 
@@ -193,8 +195,13 @@ def gae_for(args):
             zy = model(y)
             print("zx shape", zx.shape)
             print("zy shape", zy.shape)
-            batch_label = torch.cat((torch.ones(ed-st), torch.zeros(ed-st))).cuda()
+            if args.cuda:
+                batch_label = torch.cat((torch.ones(ed-st), torch.zeros(ed-st))).cuda()
+            else:
+                batch_label = torch.cat((torch.ones(ed-st), torch.zeros(ed-st)))
             batch_pred = model.dcs(zx, zy)
+            print("Batch label shape", batch_label.shape)
+            print("Batch pred shape", batch_pred.shape)
             loss = loss_function(adj_preds=batch_pred, adj_labels=batch_label, n_nodes=ed-st)
             
             loss.backward()

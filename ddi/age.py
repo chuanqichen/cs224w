@@ -19,6 +19,7 @@ from graph_global_attention_layer import LowRankAttention, weight_init
 from logger import Logger
 
 import scipy.sparse as sp
+from sklearn.preprocessing import normalize
 
 class LinTrans(nn.Module):
     def __init__(self, layers, dims):
@@ -75,49 +76,61 @@ class LinkPredictor(torch.nn.Module):
         x = self.lins[-1](x)
         return torch.sigmoid(x)
 
-def train(model, predictor, x, adj_t, split_edge, optimizer, batch_size):
+def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
+                         optimizer, batch_size, cpu):
 
     #row, col, _ = adj_t.coo()
     #_, coo = dense_to_sparse(adj_t)
-    n_nodes = adj_t.shape[0]
+    n_nodes = adj.shape[0]
 
-    coo = adj_t
+    coo = adj
     edge_index = torch.stack([coo[0], coo[1]], dim=0).to_dense()
 
     model.train()
-    predictor.train()
 
-    pos_train_edge = split_edge['train']['edge'].to(x.device)
-
+    print(batch_size)
+    print(pos_inds_cuda.shape)
+    print(pos_inds_cuda.shape[0])
     total_loss = total_examples = 0
-    for perm in DataLoader(range(pos_train_edge.size(0)), batch_size,
+    for perm in DataLoader(range(pos_inds_cuda.shape[0]), batch_size=batch_size,
                            shuffle=True):
         optimizer.zero_grad()
 
-        print("Perm size", perm.size(0))
+        print("Perm size", perm.shape)
 
-        pos_edges = pos_train_edge[perm].t()
-        print("Pos edges shape", pos_edges.shape)
-        neg_edges = negative_sampling(edge_index, num_nodes=x.size(0),
-                                 num_neg_samples=perm.size(0), method='dense')
+        if cpu:
+            sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=batch_size))
+        else:
+            sampled_neg = torch.LongTensor(np.random.choice(neg_inds, size=batch_size)).cuda()
 
-        print("Pos edges shape", neg_edges.shape)
+        sampled_inds = torch.cat((pos_inds_cuda[perm], sampled_neg), 0)
+        
+        x_idx = sampled_inds // n_nodes
+        y_idx = sampled_inds % n_nodes
 
-        combined_edges = torch.cat((pos_edges, neg_edges), 0)
-        x_edges = combined_edges // n_nodes
-        y_edges = combined_edges % n_nodes
+        x = torch.index_select(inx, 0, x_idx)
+        y = torch.index_select(inx, 0, y_idx)
+        print("x shape", x.shape)
+        print("y shape", y.shape)
 
-        h = model(x)
+        zx = model(x)
+        zy = model(y)
 
-        neg_out = predictor(h[edge[0]], h[edge[1]])
-        neg_loss = -torch.log(1 - neg_out + 1e-15).mean()
+        print("Zx shape", zx.shape)
+        print("Zy shape", zy.shape)
+        
+        if cpu:
+            batch_label = torch.cat((torch.ones(batch_size), torch.zeros(batch_size)))
+        else:
+            batch_label = torch.cat((torch.ones(batch_size), torch.zeros(batch_size))).cuda()
 
-        loss = pos_loss + neg_loss
+        batch_pred = model.dcs(zx, zy)
+        loss = F.binary_cross_entropy_with_logits(batch_pred, batch_label)
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(x, 1.0)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0)
+        # torch.nn.utils.clip_grad_norm_(x, 1.0)
+        # torch.nn.utils.clip_grad_norm_(y, 1.0)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
         optimizer.step()
 
@@ -131,7 +144,6 @@ def train(model, predictor, x, adj_t, split_edge, optimizer, batch_size):
 @torch.no_grad()
 def test(model, predictor, x, adj_t, split_edge, evaluator, batch_size):
     model.eval()
-    predictor.eval()
 
     h = model(x)
 
@@ -197,6 +209,23 @@ def gpu_setup(gpu_id):
     device = torch.device("cuda")
     return device
 
+def update_similarity(z, upper_threshold, lower_treshold, pos_num, neg_num):
+    f_adj = np.matmul(z, np.transpose(z))
+    cosine = f_adj
+    cosine = cosine.reshape([-1,])
+    pos_num = round(upper_threshold * len(cosine))
+    neg_num = round((1-lower_treshold) * len(cosine))
+    
+    pos_inds = np.argpartition(-cosine, pos_num)[:pos_num]
+    neg_inds = np.argpartition(cosine, neg_num)[:neg_num]
+    
+    return np.array(pos_inds), np.array(neg_inds)
+
+def update_threshold(upper_threshold, lower_treshold, up_eta, low_eta):
+    upth = upper_threshold + up_eta
+    lowth = lower_treshold + low_eta
+    return upth, lowth
+
 def main():
     parser = argparse.ArgumentParser(description='OGBL-DDI (GNN)')
     parser.add_argument('--cpu', type=int, default=0)
@@ -214,6 +243,11 @@ def main():
     parser.add_argument('--k', type=int, default=50)
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--age_dims', type=int, default=[500], help='Number of units in hidden layer 1.')
+    parser.add_argument('--upth_st', type=float, default=0.0011, help='Upper Threshold start.')
+    parser.add_argument('--lowth_st', type=float, default=0.1, help='Lower Threshold start.')
+    parser.add_argument('--upth_ed', type=float, default=0.001, help='Upper Threshold end.')
+    parser.add_argument('--lowth_ed', type=float, default=0.5, help='Lower Threshold end.')
+    parser.add_argument('--upd', type=int, default=10, help='Update epoch.')
 
     args = parser.parse_args()
     print("Arguments", args)
@@ -313,13 +347,23 @@ def main():
     print("Number Pos Training Edges", pos_num)
     print("Number Neg Training Edges", neg_num)
     
-    #up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
-    #low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
+    up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
+    low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
+
+    pos_inds, neg_inds = update_similarity(normalize(sm_fea_s.numpy()), args.upth_st, args.lowth_st, pos_num, neg_num)
+    print("pos_inds shape", pos_inds.shape)
+    print("neg_inds shape", neg_inds.shape)
+
+    upth, lowth = update_threshold(args.upth_st, args.lowth_st, up_eta, low_eta)
+    if cpu:
+        pos_inds_cuda = torch.LongTensor(pos_inds)
+    else:
+        pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
 
     print("model parameters {}".format(sum(p.numel() for p in model.parameters())))
-    print("predictor parameters {}".format(sum(p.numel() for p in predictor.parameters())))
-    print("total parameters {}".format(data.num_nodes*args.hidden_channels + 
-    sum(p.numel() for p in model.parameters())+sum(p.numel() for p in predictor.parameters())))
+    #print("predictor parameters {}".format(sum(p.numel() for p in predictor.parameters())))
+    #print("total parameters {}".format(data.num_nodes*args.hidden_channels + 
+    #sum(p.numel() for p in model.parameters())+sum(p.numel() for p in predictor.parameters())))
     evaluator = Evaluator(name='ogbl-ddi')
     loggers = {
         'Hits@10': Logger(args.runs, args),
@@ -334,8 +378,8 @@ def main():
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
         for epoch in range(1, 1 + args.epochs):
-            loss = train(model, predictor, emb.weight, adj, split_edge,
-                         optimizer, args.batch_size)
+            loss = train(model, inx, pos_inds_cuda, neg_inds, adj, split_edge,
+                         optimizer, args.batch_size, args.cpu)
             print("epoch: ", epoch, " loss: ", loss)
 
             if epoch % args.eval_steps == 0:
