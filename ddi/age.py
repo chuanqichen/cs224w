@@ -21,6 +21,7 @@ from logger import Logger
 import scipy.sparse as sp
 from sklearn.preprocessing import normalize
 
+
 class LinTrans(nn.Module):
     def __init__(self, layers, dims):
         super(LinTrans, self).__init__()
@@ -77,7 +78,7 @@ class LinkPredictor(torch.nn.Module):
         return torch.sigmoid(x)
 
 def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
-                         optimizer, batch_size, cpu):
+                         optimizer, batch_size, cpu, debug):
 
     #row, col, _ = adj_t.coo()
     #_, coo = dense_to_sparse(adj_t)
@@ -88,15 +89,18 @@ def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
 
     model.train()
 
-    print(batch_size)
-    print(pos_inds_cuda.shape)
-    print(pos_inds_cuda.shape[0])
+    if debug:
+        print(batch_size)
+        print(pos_inds_cuda.shape)
+        print(pos_inds_cuda.shape[0])
+
     total_loss = total_examples = 0
     for perm in DataLoader(range(pos_inds_cuda.shape[0]), batch_size=batch_size,
                            shuffle=True):
         optimizer.zero_grad()
 
-        print("Perm size", perm.shape)
+        if debug:
+            print("Perm size", perm.shape)
         n_samples = perm.shape[0]
 
         if cpu:
@@ -111,14 +115,16 @@ def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
 
         x = torch.index_select(inx, 0, x_idx)
         y = torch.index_select(inx, 0, y_idx)
-        print("x shape", x.shape)
-        print("y shape", y.shape)
+        if debug:
+            print("x shape", x.shape)
+            print("y shape", y.shape)
 
         zx = model(x)
         zy = model(y)
 
-        print("Zx shape", zx.shape)
-        print("Zy shape", zy.shape)
+        if debug:
+            print("Zx shape", zx.shape)
+            print("Zy shape", zy.shape)
         
         if cpu:
             batch_label = torch.cat((torch.ones(n_samples), torch.zeros(n_samples)))
@@ -141,61 +147,54 @@ def train(model,  inx, pos_inds_cuda, neg_inds, adj, split_edge,
 
     return total_loss / total_examples
 
+def get_preds(emb, adj_orig, edges):
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+    
+    adj_rec = np.dot(emb, emb.T)
+    preds = []
+    for e in edges:
+        preds.append(sigmoid(adj_rec[e[0], e[1]]))
 
+    return torch.FloatTensor(preds)
+        
 @torch.no_grad()
-def test(model, predictor, x, adj_t, split_edge, evaluator, batch_size, upth, lowth, up_eta, low_eta, pos_num, neg_num):
+def test(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, debug):
+    upth, lowth, up_eta, low_eta, pos_num, neg_num = thresh
     model.eval()
-    h = model(x)
 
-    pos_train_edge = split_edge['eval_train']['edge'].to(x.device)
-    pos_valid_edge = split_edge['valid']['edge'].to(x.device)
-    neg_valid_edge = split_edge['valid']['edge_neg'].to(x.device)
-    pos_test_edge = split_edge['test']['edge'].to(x.device)
-    neg_test_edge = split_edge['test']['edge_neg'].to(x.device)
-
-    hidden_emb = h.cpu().data.numpy()
+    h = model(inx)
+    emb = h.cpu().data.numpy()
+ 
     upth, lowth = update_threshold(upth, lowth, up_eta, low_eta)
-    pos_inds, neg_inds = update_similarity(hidden_emb, upth, lowth, pos_num, neg_num)
-    bs = min(batch_size, len(pos_inds))
-    pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
-    val_auc, val_ap = get_roc_score(hidden_emb, adj_t, pos_valid_edge, neg_valid_edge)
+    pos_inds, neg_inds = update_similarity(emb, upth, lowth, pos_num, neg_num)
+    if cpu:
+        pos_inds_cuda = torch.LongTensor(pos_inds)
+    else:
+        pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
 
-    # val_auc, val_ap = get_roc_score(hidden_emb, adj_orig, val_edges, val_edges_false)
-    # if val_auc + val_ap >= best_lp:
-    #     best_lp = val_auc + val_ap
-    #     best_emb = hidden_emb
-    # tqdm.write("Epoch: {}, train_loss_gae={:.5f}, time={:.5f}".format(
-    #     epoch + 1, cur_loss, time.time() - t))
+    if cpu:
+        pos_train_edge = split_edge['eval_train']['edge']
+        pos_valid_edge = split_edge['valid']['edge']
+        neg_valid_edge = split_edge['valid']['edge_neg']
+        pos_test_edge = split_edge['test']['edge']
+        neg_test_edge = split_edge['test']['edge_neg']
+    else:
+        pos_train_edge = split_edge['eval_train']['edge'].to(x.device)
+        pos_valid_edge = split_edge['valid']['edge'].to(x.device)
+        neg_valid_edge = split_edge['valid']['edge_neg'].to(x.device)
+        pos_test_edge = split_edge['test']['edge'].to(x.device)
+        neg_test_edge = split_edge['test']['edge_neg'].to(x.device)
 
-    pos_train_preds = []
-    for perm in DataLoader(range(pos_train_edge.size(0)), batch_size):
-        edge = pos_train_edge[perm].t()
-        pos_train_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
-    pos_train_pred = torch.cat(pos_train_preds, dim=0)
+    pos_train_pred = get_preds(emb, adj_t, pos_train_edge)
 
-    pos_valid_preds = []
-    for perm in DataLoader(range(pos_valid_edge.size(0)), batch_size):
-        edge = pos_valid_edge[perm].t()
-        pos_valid_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
-    pos_valid_pred = torch.cat(pos_valid_preds, dim=0)
+    pos_valid_pred = get_preds(emb, adj_t, pos_valid_edge)
 
-    neg_valid_preds = []
-    for perm in DataLoader(range(neg_valid_edge.size(0)), batch_size):
-        edge = neg_valid_edge[perm].t()
-        neg_valid_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
-    neg_valid_pred = torch.cat(neg_valid_preds, dim=0)
+    neg_valid_pred = get_preds(emb, adj_t, neg_valid_edge)
 
-    pos_test_preds = []
-    for perm in DataLoader(range(pos_test_edge.size(0)), batch_size):
-        edge = pos_test_edge[perm].t()
-        pos_test_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
-    pos_test_pred = torch.cat(pos_test_preds, dim=0)
+    pos_test_pred = get_preds(emb, adj_t, pos_test_edge)
 
-    neg_test_preds = []
-    for perm in DataLoader(range(neg_test_edge.size(0)), batch_size):
-        edge = neg_test_edge[perm].t()
-        neg_test_preds += [predictor(h[edge[0]], h[edge[1]]).squeeze().cpu()]
-    neg_test_pred = torch.cat(neg_test_preds, dim=0)
+    neg_test_pred = get_preds(emb, adj_t, neg_test_edge)
 
     results = {}
     for K in [10, 20, 30]:
@@ -215,7 +214,9 @@ def test(model, predictor, x, adj_t, split_edge, evaluator, batch_size, upth, lo
 
         results[f'Hits@{K}'] = (train_hits, valid_hits, test_hits)
 
-    return results
+    threshold_updates = (upth, lowth, pos_inds, neg_inds, pos_inds_cuda)
+
+    return results, threshold_updates 
 
 def gpu_setup(gpu_id):
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -242,7 +243,7 @@ def update_threshold(upper_threshold, lower_treshold, up_eta, low_eta):
 
 def main():
     parser = argparse.ArgumentParser(description='OGBL-DDI (GNN)')
-    parser.add_argument('--cpu', type=int, default=0)
+    parser.add_argument('--cpu', action='store_true', default=False, help='Disables CUDA training')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--log_steps', type=int, default=1)
     parser.add_argument('--num_gnn_layers', type=int, default=2)
@@ -262,17 +263,21 @@ def main():
     parser.add_argument('--upth_ed', type=float, default=0.001, help='Upper Threshold end.')
     parser.add_argument('--lowth_ed', type=float, default=0.5, help='Lower Threshold end.')
     parser.add_argument('--upd', type=int, default=10, help='Update epoch.')
+    parser.add_argument('--print_debug', action='store_true', default=False, help='Print out all debug information')
 
     args = parser.parse_args()
     print("Arguments", args)
+    cpu = args.cpu
+    debug = args.print_debug
+
     device = gpu_setup(args.gpu_id)
 
     dataset = PygLinkPropPredDataset(name='ogbl-ddi',
                                      transform=T.ToDense())
     data = dataset[0]
-    print("[DDI INFO] DDI Graph is undirected")
+    if debug:
+        print("[DDI INFO] DDI Graph is undirected")
 
-    cpu = args.cpu
     if cpu:
         adj = data.adj
     else:
@@ -286,8 +291,9 @@ def main():
     idx = idx[:split_edge['valid']['edge'].size(0)]
     split_edge['eval_train'] = {'edge': split_edge['train']['edge'][idx]}
 
-    print("split edge shape", idx.shape)
-    print("Adjacency Matrix shape", adj.shape)
+    if debug:
+        print("split edge shape", idx.shape)
+        print("Adjacency Matrix shape", adj.shape)
     
     # [AGE] store original adj matrix (without diag entries) for later
     # TODO
@@ -296,11 +302,13 @@ def main():
         adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0])
     else:
         adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0]).to(device)
+    adj_orig = adj
 
     # Reconstruct adj_train from split_edge['train']
     train_edges = split_edge['train']['edge']
-    print("train edge shape", train_edges.shape)
-    print("[DDI INFO] only one set of edges in split_edge['train']['edge']")
+    if debug:
+        print("train edge shape", train_edges.shape)
+        print("[DDI INFO] only one set of edges in split_edge['train']['edge']")
 
     n_train_edges = train_edges.shape[0]
     adj_data = torch.ones(n_train_edges)
@@ -324,23 +332,26 @@ def main():
     for a in adj_norm_s:
         sm_fea_s = a.dot(sm_fea_s)
 
-    print("sm_fea_s shape", sm_fea_s.shape)
-
-    adj_1st = torch.eye(n) + adj
+    if debug:
+        print("sm_fea_s shape", sm_fea_s.shape)
 
     if cpu:
+        adj_1st = torch.eye(n) + adj
         adj_label = torch.FloatTensor(adj_1st)
     else:
+        adj_1st = (adj.to(device) + torch.eye(n).to(device))
         adj_label = adj_1st.reshape(-1)
 
     layers = args.num_linear_layers
     dims = [feat_dim] + args.age_dims 
-    print("Model Dims", dims)
+    if debug:
+        print("Model Dims", dims)
 
     sm_fea_s = torch.FloatTensor(sm_fea_s)
     adj_label = adj_label.reshape([-1,])
-    print("sm_fea_s shape", sm_fea_s.shape)
-    print("adj_label shape", adj_label.shape)
+    if debug:
+        print("sm_fea_s shape", sm_fea_s.shape)
+        print("adj_label shape", adj_label.shape)
 
     if cpu:
         model = LinTrans(layers, dims)
@@ -358,15 +369,17 @@ def main():
 
     pos_num = n_train_edges 
     neg_num = n_nodes*n_nodes-pos_num
-    print("Number Pos Training Edges", pos_num)
-    print("Number Neg Training Edges", neg_num)
+    if debug:
+        print("Number Pos Training Edges", pos_num)
+        print("Number Neg Training Edges", neg_num)
     
     up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
     low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
 
     pos_inds, neg_inds = update_similarity(normalize(sm_fea_s.numpy()), args.upth_st, args.lowth_st, pos_num, neg_num)
-    print("pos_inds shape", pos_inds.shape)
-    print("neg_inds shape", neg_inds.shape)
+    if debug:
+        print("pos_inds shape", pos_inds.shape)
+        print("neg_inds shape", neg_inds.shape)
 
     upth, lowth = update_threshold(args.upth_st, args.lowth_st, up_eta, low_eta)
     if cpu:
@@ -393,13 +406,21 @@ def main():
 
         for epoch in range(1, 1 + args.epochs):
             loss = train(model, inx, pos_inds_cuda, neg_inds, adj, split_edge,
-                         optimizer, args.batch_size, args.cpu)
+                         optimizer, args.batch_size, args.cpu, args.print_debug)
             print("epoch: ", epoch, " loss: ", loss)
 
             if epoch % args.eval_steps == 0:
-                results = test(model, predictor, emb.weight, data.adj, split_edge,
-                               evaluator, args.batch_size,
-                               upth, lowth, up_eta, low_eta, pos_num, neg_num)
+                threshold = (upth, lowth, up_eta, low_eta, pos_num, neg_num)
+                results, threshold_update = test(model, inx, threshold, adj_orig, split_edge,
+                               evaluator, args.batch_size, args.cpu, args.print_debug)
+                upth, lowth, pos_inds, neg_inds, pos_inds_cuda = threshold_update
+                if debug:
+                    print("-------UPDATE THRESHOLDS-----------")
+                    print("pos_inds shape", pos_inds.shape)
+                    print("neg_inds shape", neg_inds.shape)
+                    print("Upper Threshold", upth)
+                    print("Lower Threshold", lowth) 
+
                 for key, result in results.items():
                     loggers[key].add_result(run, result)
 
