@@ -159,7 +159,7 @@ def get_preds(emb, adj_orig, edges):
     return torch.FloatTensor(preds)
         
 @torch.no_grad()
-def test(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, debug):
+def test(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, device, debug):
     upth, lowth, up_eta, low_eta, pos_num, neg_num = thresh
     model.eval()
 
@@ -180,11 +180,11 @@ def test(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, debu
         pos_test_edge = split_edge['test']['edge']
         neg_test_edge = split_edge['test']['edge_neg']
     else:
-        pos_train_edge = split_edge['eval_train']['edge'].to(x.device)
-        pos_valid_edge = split_edge['valid']['edge'].to(x.device)
-        neg_valid_edge = split_edge['valid']['edge_neg'].to(x.device)
-        pos_test_edge = split_edge['test']['edge'].to(x.device)
-        neg_test_edge = split_edge['test']['edge_neg'].to(x.device)
+        pos_train_edge = split_edge['eval_train']['edge'].to(device)
+        pos_valid_edge = split_edge['valid']['edge'].to(device)
+        neg_valid_edge = split_edge['valid']['edge_neg'].to(device)
+        pos_test_edge = split_edge['test']['edge'].to(device)
+        neg_test_edge = split_edge['test']['edge_neg'].to(device)
 
     pos_train_pred = get_preds(emb, adj_t, pos_train_edge)
 
@@ -411,7 +411,7 @@ def main():
             if epoch % args.eval_steps == 0:
                 threshold = (upth, lowth, up_eta, low_eta, pos_num, neg_num)
                 results, threshold_update = test(model, inx, threshold, adj_orig, split_edge,
-                               evaluator, args.batch_size, args.cpu, args.print_debug)
+                               evaluator, args.batch_size, args.cpu, device, args.print_debug)
                 upth, lowth, pos_inds, neg_inds, pos_inds_cuda = threshold_update
                 if debug:
                     print("-------UPDATE THRESHOLDS-----------")
