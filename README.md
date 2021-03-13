@@ -5,7 +5,7 @@
 ### 0: Install cuda driver like [CUDA Toolkit 10.2](https://developer.nvidia.com/cuda-10.2-download-archive?target_os=Linux&target_arch=x86_64&target_distro=CentOS&target_version=7&target_type=runfilelocal) 
 
 Install instruction in Linux: 
-wget https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
+wget cuda10.2(https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run)
 sudo sh cuda_10.2.89_440.33.01_linux.run
 
 Update environment variable (you can add it into  ~/.bashrc): 
