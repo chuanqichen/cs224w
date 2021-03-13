@@ -2,6 +2,8 @@
 
 ## Setup: 
 
+### 0: Install cuda driver like [CUDA Toolkit 10.2](https://developer.nvidia.com/cuda-10.2-download-archive?target_os=Linux&target_arch=x86_64&target_distro=CentOS&target_version=7&target_type=runfilelocal) 
+
 ### 1: Install from requirements.txt (using conda or pip install) 
 
 ### 2: Install [pytorch](https://developer.nvidia.com/cuda-zone)  
