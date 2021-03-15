@@ -258,7 +258,7 @@ def main():
     parser.add_argument('--k', type=int, default=50)
     parser.add_argument('--gpu_id', type=int, default=0)
     parser.add_argument('--age_dims', type=int, default=[500], help='Number of units in hidden layer 1.')
-    parser.add_argument('--upth_st', type=float, default=0.0011, help='Upper Threshold start.')
+    parser.add_argument('--upth_st', type=float, default=0.011, help='Upper Threshold start.')
     parser.add_argument('--lowth_st', type=float, default=0.1, help='Lower Threshold start.')
     parser.add_argument('--upth_ed', type=float, default=0.001, help='Upper Threshold end.')
     parser.add_argument('--lowth_ed', type=float, default=0.5, help='Lower Threshold end.')
@@ -323,7 +323,7 @@ def main():
 
     # [AGE] Feature augmentation
     # FIXME: Change feature augmentation vector later
-    features = np.ones((n, 1))
+    features = np.arange(0, n, 1).reshape(n, 1)
     n_nodes, feat_dim = features.shape
 
     sm_fea_s = sp.csr_matrix(features).toarray() 

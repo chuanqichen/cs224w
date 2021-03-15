@@ -223,7 +223,11 @@ def gae_for(args):
             upth, lowth = update_threshold(upth, lowth, up_eta, low_eta)
             pos_inds, neg_inds = update_similarity(hidden_emb, upth, lowth, pos_num, neg_num)
             bs = min(args.bs, len(pos_inds))
-            pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
+            if args.cuda:
+                pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
+            else:
+                pos_inds_cuda = torch.LongTensor(pos_inds)
+
             val_auc, val_ap = get_roc_score(hidden_emb, adj_orig, val_edges, val_edges_false)
             if val_auc + val_ap >= best_lp:
                 best_lp = val_auc + val_ap
