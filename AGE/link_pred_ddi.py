@@ -29,6 +29,9 @@ from sklearn.preprocessing import normalize, MinMaxScaler
 from sklearn import metrics
 import matplotlib.pyplot as plt
 
+from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
+import torch_geometric.transforms as T
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--gnnlayers', type=int, default=1, help="Number of gnn layers")
 parser.add_argument('--linlayers', type=int, default=1, help="Number of hidden layers")
@@ -79,24 +82,30 @@ def update_threshold(upper_threshold, lower_treshold, up_eta, low_eta):
     lowth = lower_treshold + low_eta
     return upth, lowth
 
+def get_preds(emb, adj_orig, edges):
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+    
+    adj_rec = np.dot(emb, emb.T)
+    preds = []
+    for e in edges:
+        preds.append(sigmoid(adj_rec[e[0], e[1]]))
+
+    return torch.FloatTensor(preds)
+
 
 def gae_for(args):
     print("Using {} dataset".format(args.dataset))
-    if args.dataset == 'cora':
-        n_clusters = 7
-        Cluster = SpectralClustering(n_clusters=n_clusters, affinity = 'precomputed', random_state=0)
-    elif args.dataset == 'citeseer':
-        n_clusters = 6
-        Cluster = SpectralClustering(n_clusters=n_clusters, affinity = 'precomputed', random_state=0)
-    elif args.dataset == 'pubmed':
-        n_clusters = 3
-        Cluster = SpectralClustering(n_clusters=n_clusters, affinity = 'precomputed', random_state=0)
-    elif args.dataset == 'wiki':
-        n_clusters = 17
-        Cluster = SpectralClustering(n_clusters=n_clusters, affinity = 'precomputed', random_state=0)
     
-    adj, features, true_labels, idx_train, idx_val, idx_test = load_data(args.dataset)
-    print(type(adj))
+    dataset = PygLinkPropPredDataset(name='ogbl-ddi',
+                                     transform=T.ToDense())
+    data = dataset[0]
+    adj = data.adj.numpy()
+    adj = sp.csr_matrix(adj)
+    n = adj.shape[0]
+    features = np.ones((n, 1)) 
+    
+    #split_edge = dataset.get_edge_split()
     n_nodes, feat_dim = features.shape
     dims = [feat_dim] + args.dims
     print("Model dims", dims)
@@ -108,7 +117,15 @@ def gae_for(args):
     adj.eliminate_zeros()
     adj_orig = adj
 
-    adj_train, train_edges, val_edges, val_edges_false, test_edges, test_edges_false = mask_test_edges(adj)
+    split_edge = dataset.get_edge_split()
+    val_edges = split_edge['valid']['edge']
+    val_edges_false = split_edge['valid']['edge_neg']
+    test_edges = split_edge['test']['edge']
+    test_edges_false = split_edge['test']['edge_neg']
+    train_edges = split_edge['train']['edge']
+
+    adj_train = mask_test_edges_ddi(adj, train_edges)
+    
     adj = adj_train
     n = adj.shape[0]
 
@@ -161,6 +178,7 @@ def gae_for(args):
     else:
         pos_inds_cuda = torch.LongTensor(pos_inds)
 
+    evaluator = Evaluator(name='ogbl-ddi')
     best_lp = 0.
     print("Batch Size", bs)
     print('Start Training...')
@@ -235,7 +253,46 @@ def gae_for(args):
                 best_emb = hidden_emb
             tqdm.write("Epoch: {}, train_loss_gae={:.5f}, time={:.5f}".format(
                 epoch + 1, cur_loss, time.time() - t))
-            
+
+            pos_train_edge = train_edges 
+            pos_valid_edge = val_edges
+            neg_valid_edge = val_edges_false
+            pos_test_edge = test_edges
+            neg_test_edge = test_edges_false
+
+            pos_train_pred = get_preds(hidden_emb, adj_orig, pos_train_edge)
+            pos_valid_pred = get_preds(hidden_emb, adj_orig, pos_valid_edge)
+            neg_valid_pred = get_preds(hidden_emb, adj_orig, neg_valid_edge)
+            pos_test_pred = get_preds(hidden_emb, adj_orig, pos_test_edge)
+            neg_test_pred = get_preds(hidden_emb, adj_orig, neg_test_edge)
+
+            results = {}
+            for K in [10, 20, 30]:
+                evaluator.K = K
+                train_hits = evaluator.eval({
+                    'y_pred_pos': pos_train_pred,
+                    'y_pred_neg': neg_valid_pred,
+                })[f'hits@{K}']
+                valid_hits = evaluator.eval({
+                    'y_pred_pos': pos_valid_pred,
+                    'y_pred_neg': neg_valid_pred,
+                })[f'hits@{K}']
+                test_hits = evaluator.eval({
+                    'y_pred_pos': pos_test_pred,
+                    'y_pred_neg': neg_test_pred,
+                })[f'hits@{K}']
+
+                results[f'Hits@{K}'] = (train_hits, valid_hits, test_hits)
+
+            for key, result in results.items():
+                train_hits, valid_hits, test_hits = result
+                print(key)
+                print(f'Epoch: {epoch:02d}, '
+                      f'Loss: {cur_loss:.4f}, '
+                      f'Train: {100 * train_hits:.2f}%, '
+                      f'Valid: {100 * valid_hits:.2f}%, '
+                      f'Test: {100 * test_hits:.2f}%')
+            print('---')
             
         
     tqdm.write("Optimization Finished!")

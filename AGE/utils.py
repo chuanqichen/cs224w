@@ -140,7 +140,29 @@ def sparse_to_tuple(sparse_mx):
     return coords, values, shape
 
 
+def mask_test_edges_ddi(adj, train_edges):
+    print("--------MASK TEST EDGES-------------")
+    # Function to build test set with 10% positive links
+    # NOTE: Splits are randomized and results might slightly deviate from reported numbers in the paper.
+    # TODO: Clean up.
+
+    # Remove diagonal elements
+    adj = adj - sp.dia_matrix((adj.diagonal()[np.newaxis, :], [0]), shape=adj.shape)
+    adj.eliminate_zeros()
+    # Check that diag is zero:
+    assert np.diag(adj.todense()).sum() == 0
+
+    data = np.ones(train_edges.shape[0])
+
+    # Re-build adj matrix
+    adj_train = sp.csr_matrix((data, (train_edges[:, 0], train_edges[:, 1])), shape=adj.shape)
+    adj_train = adj_train + adj_train.T
+
+    # NOTE: these edge lists only contain single direction of edge!
+    return adj_train
+
 def mask_test_edges(adj):
+    print("--------MASK TEST EDGES-------------")
     # Function to build test set with 10% positive links
     # NOTE: Splits are randomized and results might slightly deviate from reported numbers in the paper.
     # TODO: Clean up.
@@ -165,13 +187,19 @@ def mask_test_edges(adj):
     test_edges = edges[test_edge_idx]
     val_edges = edges[val_edge_idx]
     train_edges = np.delete(edges, np.hstack([test_edge_idx, val_edge_idx]), axis=0)
+    print("TEST shape", test_edges.shape)
+    print("TRAIN shape", train_edges.shape)
+    print("VAL shape", val_edges.shape)
 
     def ismember(a, b, tol=5):
         rows_close = np.all(np.round(a - b[:, None], tol) == 0, axis=-1)
         return np.any(rows_close)
 
     test_edges_false = []
+    count = 0
     while len(test_edges_false) < len(test_edges):
+        count += 1
+        print("test count", count)
         idx_i = np.random.randint(0, adj.shape[0])
         idx_j = np.random.randint(0, adj.shape[0])
         if idx_i == idx_j:
@@ -186,7 +214,10 @@ def mask_test_edges(adj):
         test_edges_false.append([idx_i, idx_j])
 
     val_edges_false = []
+    count = 0
     while len(val_edges_false) < len(val_edges):
+        count += 1
+        print("val count", count)
         idx_i = np.random.randint(0, adj.shape[0])
         idx_j = np.random.randint(0, adj.shape[0])
         if idx_i == idx_j:
@@ -310,7 +341,7 @@ def get_roc_score(emb, adj_orig, edges_pos, edges_neg):
         neg.append(adj_orig[e[0], e[1]])
 
     preds_all = np.hstack([preds, preds_neg])
-    labels_all = np.hstack([np.ones(len(preds)), np.zeros(len(preds))])
+    labels_all = np.hstack([np.ones(len(preds)), np.zeros(len(preds_neg))])
     roc_score = roc_auc_score(labels_all, preds_all)
     ap_score = average_precision_score(labels_all, preds_all)
 

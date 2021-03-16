@@ -12,6 +12,7 @@ from utils import *
 
 import torch_geometric.transforms as T
 from torch_geometric.nn import GCNConv, SAGEConv
+import torch_geometric
 
 from ogb.linkproppred import PygLinkPropPredDataset, Evaluator
 import os
@@ -21,6 +22,7 @@ from logger import Logger
 import scipy.sparse as sp
 from sklearn.preprocessing import normalize
 
+import networkx as nx
 
 class LinTrans(nn.Module):
     def __init__(self, layers, dims):
@@ -159,7 +161,7 @@ def get_preds(emb, adj_orig, edges):
     return torch.FloatTensor(preds)
         
 @torch.no_grad()
-def test(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, device, debug):
+def test(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, debug):
     upth, lowth, up_eta, low_eta, pos_num, neg_num = thresh
     model.eval()
 
@@ -180,11 +182,15 @@ def test(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, devi
         pos_test_edge = split_edge['test']['edge']
         neg_test_edge = split_edge['test']['edge_neg']
     else:
-        pos_train_edge = split_edge['eval_train']['edge'].to(device)
-        pos_valid_edge = split_edge['valid']['edge'].to(device)
-        neg_valid_edge = split_edge['valid']['edge_neg'].to(device)
-        pos_test_edge = split_edge['test']['edge'].to(device)
-        neg_test_edge = split_edge['test']['edge_neg'].to(device)
+        pos_train_edge = split_edge['eval_train']['edge'].to(x.device)
+        pos_valid_edge = split_edge['valid']['edge'].to(x.device)
+        neg_valid_edge = split_edge['valid']['edge_neg'].to(x.device)
+        pos_test_edge = split_edge['test']['edge'].to(x.device)
+        neg_test_edge = split_edge['test']['edge_neg'].to(x.device)
+
+    val_auc, val_ap = get_roc_score(emb, adj_t, pos_valid_edge, neg_valid_edge)
+    print("VAL AUC", val_auc)
+    print("VAL AP", val_ap)
 
     pos_train_pred = get_preds(emb, adj_t, pos_train_edge)
 
@@ -246,14 +252,14 @@ def main():
     parser.add_argument('--cpu', action='store_true', default=False, help='Disables CUDA training')
     parser.add_argument('--device', type=int, default=0)
     parser.add_argument('--log_steps', type=int, default=1)
-    parser.add_argument('--num_gnn_layers', type=int, default=2)
+    parser.add_argument('--num_gnn_layers', type=int, default=1)
     parser.add_argument('--num_linear_layers', type=int, default=1)
     parser.add_argument('--hidden_channels', type=int, default=256)
     parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--batch_size', type=int, default=1024)
     parser.add_argument('--lr', type=float, default=0.005)
     parser.add_argument('--epochs', type=int, default=200)
-    parser.add_argument('--eval_steps', type=int, default=1)
+    parser.add_argument('--eval_steps', type=int, default=10)
     parser.add_argument('--runs', type=int, default=10)
     parser.add_argument('--k', type=int, default=50)
     parser.add_argument('--gpu_id', type=int, default=0)
@@ -262,7 +268,6 @@ def main():
     parser.add_argument('--lowth_st', type=float, default=0.1, help='Lower Threshold start.')
     parser.add_argument('--upth_ed', type=float, default=0.001, help='Upper Threshold end.')
     parser.add_argument('--lowth_ed', type=float, default=0.5, help='Lower Threshold end.')
-    parser.add_argument('--upd', type=int, default=10, help='Update epoch.')
     parser.add_argument('--print_debug', action='store_true', default=False, help='Print out all debug information')
 
     args = parser.parse_args()
@@ -323,7 +328,8 @@ def main():
 
     # [AGE] Feature augmentation
     # FIXME: Change feature augmentation vector later
-    features = np.arange(0, n, 1).reshape(n, 1)
+    #features = np.arange(0, n, 1).reshape(n, 1)
+    features = np.ones((n, 1))
     n_nodes, feat_dim = features.shape
 
     sm_fea_s = sp.csr_matrix(features).toarray() 
@@ -335,10 +341,11 @@ def main():
     if debug:
         print("sm_fea_s shape", sm_fea_s.shape)
 
-    adj_1st = torch.eye(n) + adj
     if cpu:
+        adj_1st = torch.eye(n) + adj
         adj_label = torch.FloatTensor(adj_1st)
     else:
+        adj_1st = (adj.to(device) + torch.eye(n).to(device))
         adj_label = adj_1st.reshape(-1)
 
     layers = args.num_linear_layers
@@ -354,15 +361,15 @@ def main():
 
     if cpu:
         model = LinTrans(layers, dims)
-        emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels)
-        predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
-                                  args.num_gnn_layers, args.dropout)
+        #emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels)
+        #predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
+        #                          args.num_gnn_layers, args.dropout)
         inx = sm_fea_s
     else:
         model = LinTrans(layers, dims).to(device)
-        emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels).to(device)
-        predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
-                                  args.num_gnn_layers, args.dropout).to(device)
+        #emb = torch.nn.Embedding(data.num_nodes, args.hidden_channels).to(device)
+        #predictor = LinkPredictor(args.hidden_channels, args.hidden_channels, 1,
+        #                          args.num_gnn_layers, args.dropout).to(device)
         inx = sm_fea_s.cuda()
         adj_label = adj_label.cuda()
 
@@ -372,8 +379,8 @@ def main():
         print("Number Pos Training Edges", pos_num)
         print("Number Neg Training Edges", neg_num)
     
-    up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.upd)
-    low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.upd)
+    up_eta = (args.upth_ed - args.upth_st) / (args.epochs/args.eval_steps)
+    low_eta = (args.lowth_ed - args.lowth_st) / (args.epochs/args.eval_steps)
 
     pos_inds, neg_inds = update_similarity(normalize(sm_fea_s.numpy()), args.upth_st, args.lowth_st, pos_num, neg_num)
     if debug:
@@ -382,9 +389,9 @@ def main():
 
     upth, lowth = update_threshold(args.upth_st, args.lowth_st, up_eta, low_eta)
     if cpu:
-        pos_inds_cuda = torch.LongTensor(pos_inds)
+        pos_inds_cuda_orig = torch.LongTensor(pos_inds)
     else:
-        pos_inds_cuda = torch.LongTensor(pos_inds).cuda()
+        pos_inds_cuda_orig = torch.LongTensor(pos_inds).cuda()
 
     print("model parameters {}".format(sum(p.numel() for p in model.parameters())))
     #print("predictor parameters {}".format(sum(p.numel() for p in predictor.parameters())))
@@ -398,12 +405,16 @@ def main():
     }
 
     for run in range(args.runs):
-        torch.nn.init.xavier_uniform_(emb.weight)
+        #torch.nn.init.xavier_uniform_(emb.weight)
         model.reset_parameters()
-        predictor.reset_parameters()
+        #predictor.reset_parameters()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        pos_inds_cuda = pos_inds_cuda_orig
 
         for epoch in range(1, 1 + args.epochs):
+            print("------- POS INDS SIZE", pos_inds_cuda.shape)
+            print("thresholds", upth, lowth, up_eta, low_eta)
+            print("sample numbers", pos_num, neg_num)
             loss = train(model, inx, pos_inds_cuda, neg_inds, adj, split_edge,
                          optimizer, args.batch_size, args.cpu, args.print_debug)
             print("epoch: ", epoch, " loss: ", loss)
@@ -411,7 +422,7 @@ def main():
             if epoch % args.eval_steps == 0:
                 threshold = (upth, lowth, up_eta, low_eta, pos_num, neg_num)
                 results, threshold_update = test(model, inx, threshold, adj_orig, split_edge,
-                               evaluator, args.batch_size, args.cpu, device, args.print_debug)
+                               evaluator, args.batch_size, args.cpu, args.print_debug)
                 upth, lowth, pos_inds, neg_inds, pos_inds_cuda = threshold_update
                 if debug:
                     print("-------UPDATE THRESHOLDS-----------")
