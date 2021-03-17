@@ -214,7 +214,7 @@ def update(model, inx, thresh, adj_t, split_edge, evaluator, batch_size, cpu, de
     return threshold_updates 
         
 @torch.no_grad()
-def test(model, inx, adj_t, split_edge, evaluator, batch_size, cpu, debug):
+def test(model, inx, adj_t, split_edge, evaluator, batch_size, cpu, device, debug):
     model.eval()
 
     h = model(inx)
@@ -227,11 +227,11 @@ def test(model, inx, adj_t, split_edge, evaluator, batch_size, cpu, debug):
         pos_test_edge = split_edge['test']['edge']
         neg_test_edge = split_edge['test']['edge_neg']
     else:
-        pos_train_edge = split_edge['eval_train']['edge'].to(x.device)
-        pos_valid_edge = split_edge['valid']['edge'].to(x.device)
-        neg_valid_edge = split_edge['valid']['edge_neg'].to(x.device)
-        pos_test_edge = split_edge['test']['edge'].to(x.device)
-        neg_test_edge = split_edge['test']['edge_neg'].to(x.device)
+        pos_train_edge = split_edge['eval_train']['edge'].to(device)
+        pos_valid_edge = split_edge['valid']['edge'].to(device)
+        neg_valid_edge = split_edge['valid']['edge_neg'].to(device)
+        pos_test_edge = split_edge['test']['edge'].to(device)
+        neg_test_edge = split_edge['test']['edge_neg'].to(device)
 
     val_auc, val_ap = get_roc_score(emb, adj_t, pos_valid_edge, neg_valid_edge)
     print("VAL AUC", val_auc)
@@ -390,11 +390,10 @@ def main():
     if debug:
         print("sm_fea_s shape", sm_fea_s.shape)
 
+    adj_1st = torch.eye(n) + adj
     if cpu:
-        adj_1st = torch.eye(n) + adj
         adj_label = torch.FloatTensor(adj_1st)
     else:
-        adj_1st = (adj.to(device) + torch.eye(n).to(device))
         adj_label = adj_1st.reshape(-1)
 
     layers = args.num_linear_layers
@@ -480,7 +479,7 @@ def main():
                 print("Lower Threshold", lowth) 
             if epoch % args.eval_steps == 0:
                 results = test(model, inx, adj_orig, split_edge,
-                               evaluator, args.batch_size, args.cpu, args.print_debug)
+                               evaluator, args.batch_size, args.cpu, device, args.print_debug)
                 for key, result in results.items():
                     loggers[key].add_result(run, result)
 
