@@ -73,18 +73,13 @@ class DeeperGCN(torch.nn.Module):
             l.reset_parameters()
 
     def forward(self, x, edge_index):
-        print("Node encoder")
         x = self.node_encoder(x)
-        print("Node encoder done")
         x = self.layers[0].conv(x, edge_index)
-        print("Conv layer 1 done")
         for layer in self.layers[1:]:
             x = layer(x, edge_index)
-            print("Conv layer done")
 
         x = self.layers[0].act(self.layers[0].norm(x))
         x = F.dropout(x, p=0.1, training=self.training)
-        print("out layer done")
         return self.lin(x)
 
 class GCN(torch.nn.Module):
@@ -132,7 +127,7 @@ class GCNWithAttention(torch.nn.Module):
         self.bn = nn.ModuleList([nn.BatchNorm1d(hidden_channels) for _ in range(num_layers-1)])      
         for _ in range(num_layers - 1):
             self.convs.append(GENConv(hidden_channels, hidden_channels))
-            self.attention.append(LowRankAttention(self.k,hidden_channels, dropout))
+            self.attention.append(LowRankAttention(self.k,hidden_channels, dropout, device))
             self.dimension_reduce.append(nn.Sequential(nn.Linear(2*self.k + hidden_channels,\
             hidden_channels)))
         self.dimension_reduce[-1] = nn.Sequential(nn.Linear(2*self.k + hidden_channels,\
@@ -150,9 +145,8 @@ class GCNWithAttention(torch.nn.Module):
             batch_norm.reset_parameters()
 
     def forward(self, x, adj):
-        edge_index = adj.continuous()
         for i, conv in enumerate(self.convs[:-1]):
-            x_local = F.relu(conv(x, edge_index))
+            x_local = F.relu(conv(x, adj))
             x_local = F.dropout(x_local, p=self.dropout, training=self.training)
             x_global = self.attention[i](x)
             x = self.dimension_reduce[i](torch.cat((x_global, x_local),dim=1))
