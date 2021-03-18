@@ -368,15 +368,22 @@ def main():
         print(a.shape, sm_fea_s.shape)
         print(a)
         print(sm_fea_s)
-        return 0
         sm_fea_s = a.dot(sm_fea_s)
 
     if debug:
         print("sm_fea_s shape", sm_fea_s.shape)
 
     if cpu:
-        adj_1st = torch.eye(n) + adj
-        adj_label = torch.FloatTensor(adj_1st)
+        #adj_1st = torch.eye(n) + adj
+        adj_1st =  adj
+        adj_1st.setdiag(1)
+        #adj_label = torch.FloatTensor(adj_1st)
+        values = adj_1st.data
+        indices = np.vstack((adj_1st.row, adj_1st.col))
+        i = torch.LongTensor(indices)
+        v = torch.FloatTensor(values)
+        shape = adj_1st.shape
+        adj_label = torch.sparse.FloatTensor(i, v, torch.Size(shape))
     else:
         adj_1st = (adj.to(device) + torch.eye(n).to(device))
         adj_label = adj_1st.reshape(-1)
@@ -386,8 +393,11 @@ def main():
     if debug:
         print("Model Dims", dims)
 
-    sm_fea_s = torch.FloatTensor(sm_fea_s)
-    adj_label = adj_label.reshape([-1,])
+    sm_fea_s = torch.FloatTensor(sm_fea_s.todense())
+    print(type(adj_label))
+    print(adj_label)
+    adj_label = adj_label.to_dense()
+    adj_label = adj_label.reshape((-1,))
     if debug:
         print("sm_fea_s shape", sm_fea_s.shape)
         print("adj_label shape", adj_label.shape)
