@@ -3,9 +3,9 @@ import torch.nn as nn
 import numpy as np
 
 
-def joint_normalize2(U, V_T):
+def joint_normalize2(U, V_T, device='cuda'):
     # U and V_T are in block diagonal form
-    tmp_ones = torch.ones((V_T.shape[1],1)).to(torch.device('cuda'))
+    tmp_ones = torch.ones((V_T.shape[1],1)).to(torch.device(device))
     norm_factor = torch.mm(U,torch.mm(V_T,tmp_ones))
     norm_factor = (torch.sum(norm_factor) / U.shape[0]) + 1e-6
     return 1/norm_factor
@@ -19,13 +19,14 @@ def weight_init(layer):
     return
 
 class LowRankAttention(nn.Module):
-    def __init__(self,k,d,dropout):
+    def __init__(self,k,d,dropout, device='cuda'):
         super().__init__()
         self.w = nn.Sequential(nn.Linear(d,4*k),nn.ReLU())
         self.activation = nn.ReLU()
         self.apply(weight_init)
         self.k = k
         self.dropout = nn.Dropout(p=dropout)
+        self.device = device
 
     def forward(self, X):
         tmp = self.w(X)
@@ -35,7 +36,7 @@ class LowRankAttention(nn.Module):
         T = tmp[:,3*self.k:]
         V_T = torch.t(V)
         # normalization
-        D = joint_normalize2(U, V_T) 
+        D = joint_normalize2(U, V_T, self.device) 
         res = torch.mm(U, torch.mm(V_T, Z))
         res = torch.cat((res*D,T),dim=1)
         return self.dropout(res)
