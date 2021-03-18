@@ -146,10 +146,9 @@ def mask_test_edges(adj):
     # TODO: Clean up.
 
     # Remove diagonal elements
-    adj = adj - sp.dia_matrix((adj.diagonal()[np.newaxis, :], [0]), shape=adj.shape)
+    adj.setdiag(0)
     adj.eliminate_zeros()
     # Check that diag is zero:
-    assert np.diag(adj.todense()).sum() == 0
 
     adj_triu = sp.triu(adj)
     adj_tuple = sparse_to_tuple(adj_triu)
@@ -247,6 +246,32 @@ def decompose(adj, dataset, norm='sym', renorm=True):
     fig.savefig("eig_renorm_" + dataset + ".png")
 
 
+
+def preprocess_graph_sparse(adj, layer, norm='sym', renorm=True):
+    ident = sp.eye(adj.shape[0])
+    if renorm:
+        adj_ = adj + ident
+    else:
+        adj_ = adj
+    
+    rowsum = np.array(adj_.sum(1))
+    
+    if norm == 'sym':
+        degree_mat_inv_sqrt = sp.diags(np.power(rowsum, -0.5).flatten())
+        adj_normalized = adj_.dot(degree_mat_inv_sqrt).transpose().dot(degree_mat_inv_sqrt).tocoo()
+        laplacian = ident - adj_normalized
+    elif norm == 'left':
+        degree_mat_inv_sqrt = sp.diags(np.power(rowsum, -1.).flatten())
+        adj_normalized = degree_mat_inv_sqrt.dot(adj_).tocoo()
+        laplacian = ident - adj_normalized
+        
+
+    reg = [2/3] * (layer)
+
+    adjs = []
+    for i in range(len(reg)):
+        adjs.append(ident-(reg[i] * laplacian))
+    return adjs
 
 def preprocess_graph(adj, layer, norm='sym', renorm=True):
     adj = sp.coo_matrix(adj)

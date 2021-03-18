@@ -24,39 +24,6 @@ from sklearn.preprocessing import normalize
 
 import networkx as nx
 import ast
-import pickle
-
-CLUSTER_FILENAME = "./features/clustering.txt"
-PAGERANK_FILENAME = "./features/pagerank.txt"
-DEGREE_FILENAME = "./features/degree.pkl"
-CENTRALITY_FILENAME = "./features/centrality.pkl"
-
-def get_features(n_nodes):
-    with open(PAGERANK_FILENAME, "r") as f:
-        contents = f.read()
-        pagerank_dict = ast.literal_eval(contents)
-    pagerank_vals = np.array(list(pagerank_dict.values())).reshape((n_nodes, 1))
-    print(pagerank_vals) 
-
-    with open(CLUSTER_FILENAME, "r") as f:
-        contents = f.read()
-        clustering_dict = ast.literal_eval(contents)
-    cluster_vals = np.array(list(clustering_dict.values())).reshape((n_nodes, 1))
-    print(cluster_vals)
-
-    with open(DEGREE_FILENAME, "rb") as f:
-        degree_dict = pickle.load(f)
-    degree_vals = np.array(list(clustering_dict.values())).reshape((n_nodes, 1))
-    print(degree_vals)
-
-    with open(CENTRALITY_FILENAME, "rb") as f:
-        centrality_dict = pickle.load(f)
-    centrality_vals = np.array(list(clustering_dict.values())).reshape((n_nodes, 1))
-    print(centrality_vals)
-    
-    ones = np.ones((n_nodes, 1))
-    features = np.hstack([ones, pagerank_vals, cluster_vals, centrality_vals, degree_vals])
-    return features
 
 class LinTrans(nn.Module):
     def __init__(self, layers, dims):
@@ -293,6 +260,13 @@ def update_threshold(upper_threshold, lower_treshold, up_eta, low_eta):
     lowth = lower_treshold + low_eta
     return upth, lowth
 
+def torch_sp_coo(coo_torch):
+    vals = coo_torch[2].t()[0].numpy()
+    r = coo_torch[0].numpy()
+    c = coo_torch[1].numpy()
+    coo_sp = sp.coo_matrix((vals, (r, c)))
+    return coo_sp
+
 def main():
     parser = argparse.ArgumentParser(description='OGBL-DDI (GNN)')
     parser.add_argument('--cpu', action='store_true', default=False, help='Disables CUDA training')
@@ -323,16 +297,16 @@ def main():
 
     device = gpu_setup(args.gpu_id)
 
-    dataset = PygLinkPropPredDataset(name='ogbl-ddi',
-                                     transform=T.ToDense())
+    dataset = PygLinkPropPredDataset(name='ogbl-collab',
+                                     transform=T.ToSparseTensor())
     data = dataset[0]
     if debug:
         print("[DDI INFO] DDI Graph is undirected")
 
     if cpu:
-        adj = data.adj
+        adj_t = data.adj_t
     else:
-        adj = data.adj.to(device)
+        adj_t = data.adj_t.to(device)
         
     split_edge = dataset.get_edge_split()
 
@@ -348,13 +322,13 @@ def main():
     
     # [AGE] store original adj matrix (without diag entries) for later
     # TODO
-    diag_ind = np.diag_indices(adj.shape[0])
-    if cpu:
-        adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0])
-    else:
-        adj[diag_ind[0], diag_ind[1]] = torch.zeros(adj.shape[0]).to(device)
+    coo_adj = adj_t.coo()
+    adj_sp = torch_sp_coo(coo_adj)
+    adj = adj_sp
+    adj.setdiag(0)
+    adj.eliminate_zeros()
     adj_orig = adj
-
+    print("ADJ ORIG DONE...")
     # Reconstruct adj_train from split_edge['train']
     train_edges = split_edge['train']['edge']
     if debug:
@@ -365,26 +339,36 @@ def main():
     adj_data = torch.ones(n_train_edges)
     adj_train = torch.sparse_coo_tensor(train_edges.transpose(1, 0), adj_data, (adj.shape)) 
     adj_train = adj_train + adj_train.transpose(1, 0)
-    adj = adj_train
+    adj_train = adj_train.coalesce()
+    r = adj_train.indices()[0].numpy()
+    c = adj_train.indices()[1].numpy()
+    vals = adj_train.values().numpy()
+    adj_sp = sp.coo_matrix((vals, (r, c)))
+    adj = adj_sp
     n = adj.shape[0]
+    print("ADJ TRAIN DONE...")
+    print(adj_train)
     
-    print("after adj_train") 
-    adj_numpy = adj.to_dense().cpu().detach().numpy()
-
-    adj_norm_s = preprocess_graph(adj_numpy, args.num_gnn_layers, norm='sym', renorm=True)
+    adj_norm_s = preprocess_graph(adj, args.num_gnn_layers, norm='sym', renorm=True)
+    print("ADJ PREPROCESS DONE...")
 
     # [AGE] Feature augmentation
     # FIXME: Change feature augmentation vector later
     #features = np.arange(0, n, 1).reshape(n, 1)
     print("[DDI INFO] Number of ddi nodes =", n)
-    features = get_features(n)
+    features = data.x
     n_nodes, feat_dim = features.shape
     print("FEATURE SHAPE:", features.shape)
 
-    sm_fea_s = sp.csr_matrix(features).toarray() 
+    sm_fea_s = sp.csr_matrix(features) 
 
     print('Laplacian Smoothing...') 
+    print(len(adj_norm_s))
     for a in adj_norm_s:
+        print(a.shape, sm_fea_s.shape)
+        print(a)
+        print(sm_fea_s)
+        return 0
         sm_fea_s = a.dot(sm_fea_s)
 
     if debug:
