@@ -327,7 +327,7 @@ def main():
 #    dataset = PygLinkPropPredDataset(name='ogbl-ddi',
 #                                     transform=T.ToSparseTensor())
     data = dataset[0]
-    edge_index = data.edge_index
+    edge_index = data.edge_index.to(device)
     data = T.ToSparseTensor()(data)
     adj_t = data.adj_t.to(device)
 
