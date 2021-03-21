@@ -1,4 +1,4 @@
-# cs224w
+# The Study of Drug-Drug Interaction LearningThrough Various Graph Learning Methods 
 
 
 
@@ -74,7 +74,17 @@ pip install ogb
 python -c "import ogb; print(ogb.__version__)"
 Note: This should print "1.2.6". Otherwise, please update the version by
 pip install -U ogb
+
+### Dataset ogbl-ddi:
+  1. ```https://ogb.stanford.edu/docs/linkprop/#ogbl-ddi
 ```
+
+### Run commands: 
+ 1. python gnn_augmented_node2vec.py --hidden_channels 1024 --gpu_id 1 
+ 2. CUDA_VISIBLE_DEVICES=0 python gnn_augmented_node2vec.py --hidden_channels 512 --gpu_id 1 
+ 3. python gnn_augmented_node2vec_random.py --hidden_channels 512 
+ 4. python deepergcn_augmented.py --hidden_channels 128 --runs 5 
+
 
 ### The **detailed hyperparameter** is:
 --num_layers          2        
