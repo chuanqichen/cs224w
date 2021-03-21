@@ -80,7 +80,7 @@ pip install -U ogb
 ```
 
 ### Run commands: 
- 1. python gnn_augmented_node2vec.py --hidden_channels 1024 --gpu_id 1 
+ 1. **python gnn_augmented_node2vec.py --hidden_channels 1024 --gpu_id 1 ** This one achieve the best results to beat the #1 leaderboard
  2. CUDA_VISIBLE_DEVICES=0 python gnn_augmented_node2vec.py --hidden_channels 512 --gpu_id 1 
  3. python gnn_augmented_node2vec_random.py --hidden_channels 512 
  4. python deepergcn_augmented.py --hidden_channels 128 --runs 5 
@@ -127,7 +127,7 @@ pip install -U ogb
 |LRGA + GCN Aug + Node2Vec		| 77.94 ± 9.20		| 71.81 ± 0.73		| 7,517,521		| Tesla V100 (32GB)|
 |LRGA + GCN Aug + Node2Vec		| 74.17 ± 13.97		| 72.03 ± 0.59		| 8,382,481		| Tesla V100 (32GB)|
 |LRGA + GCN Aug + Node2Vec		| 75.88 ± 10.28		| 71.65 ± 0.53		| 9,288,401		| Tesla V100 (32GB)|
-|**LRGA + GCN Aug + Node2Vec**		| **73.85 ± 8.71**		|** 72.25 ± 0.47	**	| **10,235,281**		| **Tesla V100 (32GB)**|
+|**LRGA + GCN Aug + Node2Vec**		| **73.85 ± 8.71**	| ** 72.25 ± 0.47	**	| **10,235,281**		| **Tesla V100 (32GB)**|
 |LRGA + GCN Aug + Node2Vec		| 66.07 ± 20.60		| 70.97 ± 2.76		| 12,251,921		| Tesla V100 (32GB)|
 
 
