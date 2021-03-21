@@ -80,12 +80,13 @@ pip install -U ogb
 ```
 
 ### Run commands with parameters (corresponding to the best runs only): 
+```
  1. python graphsage_augmented_node2vec.py --hidden_channels 512 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10
  2. python deepergcn_augmented.py --hidden_channels 64 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10 
  3. python gnn_augmented_node2vec_random.py --hidden_channels 512 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10 
  4. python gnn_augmented_node2vec_skip.py --hidden_channels 512 --num_layers 2 --dropout 0.55 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10
- 5. **python gnn_augmented_node2vec.py --hidden_channels 1024 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10 ** This one achieves the best results that beat the ogbl-ddi leaderboard
-
+ 5. python gnn_augmented_node2vec.py --hidden_channels 1024 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10 
+```
 
 ### Reference performance for OGB:
 
