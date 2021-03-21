@@ -79,26 +79,32 @@ pip install -U ogb
   1. ```https://ogb.stanford.edu/docs/linkprop/#ogbl-ddi
 ```
 
-### Run commands: 
- 1. **python gnn_augmented_node2vec.py --hidden_channels 1024 --gpu_id 1 ** This one achieve the best results to beat the #1 leaderboard
- 2. CUDA_VISIBLE_DEVICES=0 python gnn_augmented_node2vec.py --hidden_channels 512 --gpu_id 1 
- 3. python gnn_augmented_node2vec_random.py --hidden_channels 512 
- 4. python deepergcn_augmented.py --hidden_channels 128 --runs 5 
-
-
-### The **detailed hyperparameter** is:
---num_layers          2        
---hidden_channels     1024      
---dropout             0.5      
---lr                  0.005    
+### Run commands with parameters (corresponding to the best runs only): 
+ 1. python graphsage_augmented_node2vec.py --hidden_channels 512 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10
+ 2. python deepergcn_augmented.py --hidden_channels 64 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10 
+ 3. python gnn_augmented_node2vec_random.py --hidden_channels 512 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10 
+ 4. python gnn_augmented_node2vec_skip.py --hidden_channels 512 --num_layers 2 --dropout 0.55 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10
+ 5. **python gnn_augmented_node2vec.py --hidden_channels 1024 --num_layers 2 --dropout 0.5 --lr 0.005 --batch_size 65536 --epoch 200 --runs 10 ** This one achieves the best results that beat the ogbl-ddi leaderboard
 
 
 ### Reference performance for OGB:
 
+#### Best Runs
+| Model (command)    |Test Hits@20 (%) | Validation Hits@20(%)  | Parameters    | Hardware |
+| ------------------ |--------------   | --------------- | -------------- |----------|
+|MAD Learning (baseline)       |	67.81 ± 2.94	 |70.10 ± 0.82	  |1,228,897	|Geforce GTX 1080 Ti (11GB GPU)|
+|LRGA + GCN (baseline)	       | 62.30 ± 9.12	   | 66.75 ± 0.58	|1,576,081	|Tesla P100 (16GB GPU)|
+|LRGA + GraphSage + Node2Vec (1)	|61.23 ± 13.62	|68.27 ± 0.96		|Tesla V100 (32GB)|
+|Deeper GCN Augment	(2) |31.52 ± 8.27	| 56.92 ± 1.33	| 319,555	|Tesla V100 (32GB)|
+|LRGA + GCN Aug + Node2Vec + RNN (3)	|70.66 ± 5.88		| 69.58 ± 0.90		| 3,807,121		| Tesla V100 (32GB)|
+|LRGA + GCN Aug + Node2Vec:SkipConnect (4) 		| 65.91 ± 11.22		| 71.66 ± 1.38		| 3,126,985		| Tesla V100 (32GB)|
+|**LRGA + GCN Aug + Node2Vec** (5)	| **73.85 ± 8.71**		|** 72.25 ± 0.47	**	| **10,235,281**		| **Tesla V100 (32GB)**|
+
+#### All Runs
 | Model              |Test Hits@20 (%) | Validation Hits@20(%)  | Parameters    | Hardware |
 | ------------------ |--------------   | --------------- | -------------- |----------|
-|MAD Learning        |	67.81 ± 2.94	 |70.10 ± 0.82	  |1,228,897	|Geforce GTX 1080 Ti (11GB GPU)|
-|LRGA + GCN 	       | 62.30 ± 9.12	   | 66.75 ± 0.58	|1,576,081	|Tesla P100 (16GB GPU)|
+|MAD Learning (baseline)       |	67.81 ± 2.94	 |70.10 ± 0.82	  |1,228,897	|Geforce GTX 1080 Ti (11GB GPU)|
+|LRGA + GCN (baseline)	       | 62.30 ± 9.12	   | 66.75 ± 0.58	|1,576,081	|Tesla P100 (16GB GPU)|
 |LRGA + GraphSage + Node2Vec	|61.23 ± 13.62	|68.27 ± 0.96		|Tesla V100 (32GB)|
 |Deeper GCN Augment	|31.52 ± 8.27	| 56.92 ± 1.33	| 319,555	|Tesla V100 (32GB)|
 |LRGA + GCN Aug	|55.08 ± 13.44		| 66.03 ± 2.48		| 1,576,081		| Tesla V100 (32GB)|
@@ -137,4 +143,4 @@ pip install -U ogb
 
 2. ddi: [how to load ddi dataset for link prediction tasks](https://github.com/omri1348/LRGA/tree/master/ogb/examples/linkproppred)
 
-
+3. DeeperGCN: [example implementation of DeeperGCN](https://github.com/rusty1s/pytorch_geometric/blob/master/examples/ogbn_proteins_deepgcn.py)
