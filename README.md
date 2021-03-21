@@ -78,7 +78,7 @@ pip install -U ogb
 
 ### The **detailed hyperparameter** is:
 --num_layers          2        
---hidden_channels     1024
+--hidden_channels     1024      
 --dropout             0.5      
 --lr                  0.005    
 
