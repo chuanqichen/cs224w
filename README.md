@@ -145,3 +145,5 @@ pip install -U ogb
 2. ddi: [how to load ddi dataset for link prediction tasks](https://github.com/omri1348/LRGA/tree/master/ogb/examples/linkproppred)
 
 3. DeeperGCN: [example implementation of DeeperGCN](https://github.com/rusty1s/pytorch_geometric/blob/master/examples/ogbn_proteins_deepgcn.py)
+
+4. LRGA: [GLOBAL ATTENTION IMPROVES GRAPH NETWORKS GENERALIZATION](https://arxiv.org/pdf/2006.07846.pdf)
