@@ -127,7 +127,7 @@ pip install -U ogb
 |LRGA + GCN Aug + Node2Vec		| 77.94 ± 9.20		| 71.81 ± 0.73		| 7,517,521		| Tesla V100 (32GB)|
 |LRGA + GCN Aug + Node2Vec		| 74.17 ± 13.97		| 72.03 ± 0.59		| 8,382,481		| Tesla V100 (32GB)|
 |LRGA + GCN Aug + Node2Vec		| 75.88 ± 10.28		| 71.65 ± 0.53		| 9,288,401		| Tesla V100 (32GB)|
-**|LRGA + GCN Aug + Node2Vec		| 73.85 ± 8.71		| 72.25 ± 0.47		| 10,235,281		| Tesla V100 (32GB)|**
+|**LRGA + GCN Aug + Node2Vec**		| **73.85 ± 8.71**		|** 72.25 ± 0.47	**	| **10,235,281**		| **Tesla V100 (32GB)**|
 |LRGA + GCN Aug + Node2Vec		| 66.07 ± 20.60		| 70.97 ± 2.76		| 12,251,921		| Tesla V100 (32GB)|
 
 
