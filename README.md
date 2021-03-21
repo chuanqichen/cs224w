@@ -76,7 +76,11 @@ Note: This should print "1.2.6". Otherwise, please update the version by
 pip install -U ogb
 ```
 
-
+### The **detailed hyperparameter** is:
+--num_layers          2        
+--hidden_channels     1024
+--dropout             0.5      
+--lr                  0.005    
 
 
 ### Reference performance for OGB:
