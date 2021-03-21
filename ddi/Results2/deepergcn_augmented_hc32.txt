@@ -1,0 +1,139 @@
+Namespace(batch_size=65536, cpu=False, device=0, dropout=0.5, epochs=200, eval_steps=1, gpu_id=0, hidden_channels=32, k=50, log_steps=1, lr=0.005, num_layers=2, runs=10)
+tensor([[2.3229e-04],
+        [1.8525e-04],
+        [5.0147e-05],
+        ...,
+        [4.8080e-05],
+        [6.4173e-05],
+        [4.4643e-05]])
+tensor([[0.4260],
+        [0.8681],
+        [0.1667],
+        ...,
+        [0.0915],
+        [0.1412],
+        [0.4510]])
+tensor([[0.4260],
+        [0.8681],
+        [0.1667],
+        ...,
+        [0.0915],
+        [0.1412],
+        [0.4510]])
+tensor([[0.4260],
+        [0.8681],
+        [0.1667],
+        ...,
+        [0.0915],
+        [0.1412],
+        [0.4510]])
+model parameters 10882
+predictor parameters 1089
+total parameters 148515
+embedding shape torch.Size([4267, 27])
+augmented feature shape torch.Size([4267, 5])
+Input x shape torch.Size([4267, 32])
+Train count 1
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 2
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 3
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 4
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 5
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 6
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 7
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 8
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 9
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 10
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 11
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 12
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 13
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 14
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 15
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 16
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Train count 17
+Node encoder
+Node encoder done
+Conv layer 1 done
+Conv layer done
+out layer done
+Node encoder
+Node encoder done
